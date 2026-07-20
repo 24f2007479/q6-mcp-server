@@ -1,48 +1,40 @@
 import hashlib
-from fastapi import FastAPI, Request
-from mcp.server.fastmcp import FastMCP
+from fastapi import FastAPI
+from mcp.server.fastmcp import FastMCP, Context
 
 
 EMAIL = "24f2007479@ds.study.iitm.ac.in"
 
 
-# MCP server
 mcp = FastMCP(
     "challenge-server"
 )
 
 
 @mcp.tool()
-def solve_challenge():
+def solve_challenge(ctx: Context):
     """
-    Solves exam challenge using HTTP headers.
+    Returns SHA256(challenge:email) first 16 chars.
     """
-    
-    # headers MCP request se milenge
-    request = mcp.get_request()
+
+    request = ctx.request_context.request
 
     challenge = request.headers.get(
         "X-Exam-Challenge"
     )
 
     if not challenge:
-        return {
-            "type": "text",
-            "text": ""
-        }
+        return "missing challenge"
 
 
     value = f"{challenge}:{EMAIL}"
 
-    result = hashlib.sha256(
+    answer = hashlib.sha256(
         value.encode()
     ).hexdigest()[:16]
 
 
-    return {
-        "type": "text",
-        "text": result
-    }
+    return answer
 
 
 
@@ -52,11 +44,10 @@ app = FastAPI()
 @app.get("/")
 def home():
     return {
-        "status":"MCP server running"
+        "status": "MCP server running"
     }
 
 
-# MCP HTTP endpoint
 app.mount(
     "/mcp",
     mcp.streamable_http_app()
