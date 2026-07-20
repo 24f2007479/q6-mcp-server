@@ -1,15 +1,15 @@
 import hashlib
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
-from mcp.server.fastmcp import FastMCP, Context
+
+from fastapi import FastAPI, Request
+from mcp.server.fastmcp import FastMCP
 
 
 EMAIL = "24f2007479@ds.study.iitm.ac.in"
 
 
-# -------------------------
+# -----------------------------
 # MCP SERVER
-# -------------------------
+# -----------------------------
 
 mcp = FastMCP(
     "challenge-server"
@@ -17,47 +17,43 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-def solve_challenge(ctx: Context):
+def solve_challenge():
     """
-    Returns first 16 chars of SHA256(challenge:email)
+    Generate SHA256(challenge:email) first 16 chars.
+    Challenge comes from HTTP header.
     """
 
-    try:
-        request = ctx.request_context.request
+    request = mcp.get_request()
 
-        challenge = request.headers.get(
-            "X-Exam-Challenge"
-        )
+    challenge = request.headers.get(
+        "X-Exam-Challenge"
+    )
 
-        if not challenge:
-            return {
-                "type": "text",
-                "text": ""
-            }
-
-        raw = f"{challenge}:{EMAIL}"
-
-        result = hashlib.sha256(
-            raw.encode("utf-8")
-        ).hexdigest()[:16]
-
-
-        return {
-            "type": "text",
-            "text": result
-        }
-
-    except Exception:
+    if not challenge:
         return {
             "type": "text",
             "text": ""
         }
 
 
+    value = f"{challenge}:{EMAIL}"
 
-# -------------------------
+
+    answer = hashlib.sha256(
+        value.encode("utf-8")
+    ).hexdigest()[:16]
+
+
+    return {
+        "type": "text",
+        "text": answer
+    }
+
+
+
+# -----------------------------
 # FASTAPI APP
-# -------------------------
+# -----------------------------
 
 app = FastAPI()
 
@@ -71,25 +67,11 @@ def home():
 
 
 
-# Fix Render/FastAPI automatic 307 redirect
-# MCP clients call /mcp without trailing slash
-
-@app.api_route(
-    "/mcp",
-    methods=["GET", "POST"]
-)
-async def mcp_no_slash():
-
-    return RedirectResponse(
-        url="/mcp/",
-        status_code=200
-    )
-
-
-
-# Actual MCP endpoint
+# IMPORTANT:
+# No redirect
+# No trailing slash problem
 
 app.mount(
-    "/mcp/",
+    "/mcp",
     mcp.streamable_http_app()
 )
