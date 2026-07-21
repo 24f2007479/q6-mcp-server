@@ -1,35 +1,30 @@
-from fastapi import FastAPI
-from starlette.routing import Mount
-from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_request
 import hashlib
+
+from fastmcp import FastMCP
+from starlette.requests import Request
 
 EMAIL = "24f2007479@ds.study.iitm.ac.in".strip().lower()
 
-mcp = FastMCP("Exam Server")
+mcp = FastMCP("Exam MCP")
 
 
-@mcp.tool(
-    name="solve_challenge",
-    description="Solve exam challenge"
-)
-async def solve_challenge() -> str:
-    request = get_http_request()
+@mcp.tool(name="solve_challenge")
+async def solve_challenge(request: Request):
+    """
+    Reads challenge from HTTP headers and returns
+    first 16 chars of SHA256(challenge:email)
+    """
 
-    challenge = request.headers.get("X-Exam-Challenge", "")
+    challenge = request.headers.get("X-Exam-Challenge")
 
-    answer = hashlib.sha256(
+    if challenge is None:
+        return "missing challenge"
+
+    digest = hashlib.sha256(
         f"{challenge}:{EMAIL}".encode()
-    ).hexdigest()[:16]
+    ).hexdigest()
 
-    return answer
+    return digest[:16]
 
 
-mcp_app = mcp.streamable_http_app(path="/")
-
-app = FastAPI(
-    lifespan=mcp_app.lifespan,
-    routes=[
-        Mount("/", app=mcp_app),
-    ],
-)
+app = mcp.streamable_http_app()
